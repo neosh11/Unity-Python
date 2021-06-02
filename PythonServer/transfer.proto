@@ -1,0 +1,14 @@
+syntax = "proto3";
+package transfer;
+
+
+message Transfer {
+  enum TypeFunction {
+    NONE = 0;
+    BED_REMOVAL = 1;
+    MAGIC = 2;
+
+  }
+  TypeFunction typeOfFunction = 1;
+  repeated bytes dcmFiles = 2;
+}
