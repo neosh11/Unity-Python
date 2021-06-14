@@ -21,9 +21,18 @@ try:
         socks = dict(poller.poll())
         if socks.get(frontend) == zmq.POLLIN:
             message = frontend.recv_multipart()
+
+            print(message.__len__())
+            # print(message)
+
+            message = message
+            join = b''
+            for i in message:
+                join +=i
+            
             # Unpack protobuf?
             transfer_data = Transfer()
-            transfer_data.ParseFromString(message)
+            transfer_data.ParseFromString(join)
             
             print(transfer_data.type)
             

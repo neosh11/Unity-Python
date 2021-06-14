@@ -20,6 +20,9 @@ using NetMQ.Sockets;
 
 using Google.Protobuf;
 
+using MDPClientExample;
+using Freelance.ModelOne.Client;
+
 
 public class UIController : MonoBehaviour
 {
@@ -27,36 +30,42 @@ public class UIController : MonoBehaviour
     private RequestSocket socket;
     private bool running;
 
+    private FreelanceProgram freelanceProgram;
+
     void Start()
     {
         running = true;
     }
-    public void OnFileSelect()
+
+    void Update()
+    {
+        if (freelanceProgram != null)
+        {
+            if (freelanceProgram.response != null)
+            {
+                Debug.Log($"Unity had the following responsne :- {freelanceProgram.response}");
+                freelanceProgram = null;
+
+                // Display this Dicom :) freelanceProgram.response
+            }
+        }
+    }
+    public async void OnFileSelect()
     {
         // string path = EditorUtility.OpenFilePanel("Select a folder to upload", "", "*");
-        string path = EditorUtility.OpenFolderPanel("Select folder", "", "");
+        string path = EditorUtility.OpenFolderPanel("Select folder", "Desktop", "");
         if (path.Length != 0)
         {
-            // loop through directory
-            var fileStrings = Directory.GetFiles(path, "*.dcm");
-            var length = fileStrings.Length;
-            var filesByteData = new List<Google.Protobuf.ByteString>();
-
             Debug.Log(path);
 
-            for (int i = 0; i < length; i++)
-            {
-                var d = File.OpenRead(fileStrings[i]);
-                filesByteData.Add(Google.Protobuf.ByteString.FromStream(d));
-            }
+            // Send location to python.
 
-            // To Proto
-            filesProto = ConvertFilesByteToProto(filesByteData, Transfer.Transfer.Types.TypeFunction.BedRemoval);
-            // Make request?
+            Byte[] b = Encoding.ASCII.GetBytes(path);
+            Debug.Log("Requesting");
 
-            Request();
+            freelanceProgram = new FreelanceProgram();
+            await freelanceProgram.Request(b);
 
-            Debug.Log("requested");
         }
         else
         {
@@ -68,7 +77,6 @@ public class UIController : MonoBehaviour
     Transfer.Transfer ConvertFilesByteToProto(List<Google.Protobuf.ByteString> filesByteData, Transfer.Transfer.Types.TypeFunction type)
     {
         // To protocol buffer
-
         if (filesByteData == null)
         {
             Debug.Log("Data could not be loaded");
@@ -88,38 +96,7 @@ public class UIController : MonoBehaviour
     }
 
 
-    void Request()
-    {
-        AsyncIO.ForceDotNet.Force();
-        NetMQConfig.Cleanup();
 
-        if (filesProto == null) return;
-
-        // proto to binary
-        byte[] outBytes = filesProto.ToByteArray();
-        File.WriteAllBytes("C:\\TEST\\haha", outBytes);
-
-        Transfer.Transfer inMsg;
-        socket = new RequestSocket("tcp://localhost:5559");
-        socket.SendFrame(outBytes);
-        while (running)
-        {
-            byte[] msg;
-            var received = socket.TryReceiveFrameBytes(TimeSpan.FromSeconds(1), out msg);
-            if (received)
-            {
-                inMsg = Transfer.Transfer.Parser.ParseFrom(msg);
-                break;
-            }
-            if (!received && !running) return;
-        }
-
-        socket.Close();
-        NetMQConfig.Cleanup();
-
-        socket = null;
-        filesProto = null;
-    }
 
     void OnDestroy()
     {
@@ -131,15 +108,14 @@ public class UIController : MonoBehaviour
         Clean();
     }
 
+    void OnApplicationQuit()
+    {
+        Clean();
+    }
     void Clean()
     {
         running = false;
-        if (socket != null)
-        {
-            socket.Close();
-            socket.Dispose();
-        }
-        NetMQConfig.Cleanup();
+        NetMQConfig.Cleanup(false);
     }
 
 }
